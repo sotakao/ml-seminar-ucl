@@ -4,6 +4,45 @@ from abc import ABC, abstractmethod
 from typing import Dict, List, Tuple, Union
 
 
+# TODO: maybe consider a base class for PGM?
+
+
+class TreeGraph(nx.DiGraph):
+    def __init__(self, edge_potentials, node_potentials=None):
+        self.num_states = list(edge_potentials.values())[0].tensor.shape[0]
+
+        # assert tree
+        edges = []
+        for (i,j) in edge_potentials.keys():
+            edges.append((i,j))
+            edges.append((j,i))
+
+        super().__init__(edges)
+        assert nx.is_tree(nx.Graph(self)), "The underlying graph must be a tree"
+
+        # Complete edge potentials
+        for edge in edges:
+            if edge not in list(edge_potentials.keys()):
+                (i,j) = edge
+                tensor = edge_potentials[(j,i)].tensor
+                edge_potentials[(i,j)] = Potential(tensor.T, (i,j))
+
+        self.edge_potentials = edge_potentials
+
+        # Initialise node potentials
+        if node_potentials is None:
+            node_potentials = dict([(node, Potential(np.ones(self.num_states), [node])) for node in self.nodes()])
+        
+        node_attrs = dict([(node, {'state': np.ones(self.num_states), 'potential': potential}) 
+                          for node, potential in node_potentials.items()])
+
+        edge_attrs = dict([(edge, {'message': np.ones(self.num_states), 'potential': potential})
+                          for edge, potential in edge_potentials.items()])
+
+        nx.set_node_attributes(self, node_attrs)
+        nx.set_edge_attributes(self, edge_attrs)
+
+
 class FactorGraph:
     def __init__(self, bipartitegraph: nx.Graph, variable_nodes: Dict, factor_nodes: Dict):
         """
