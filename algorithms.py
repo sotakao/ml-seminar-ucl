@@ -133,20 +133,18 @@ def MaxProduct(tree: TreeGraph, root_node):
         current_nodes = next_nodes
 
 
-def LoopyBP(factorgraph: FactorGraph, num_iter: int=1, reset: bool=False):
+def LoopyBP(factorgraph: FactorGraph, num_iter: int=1):
     """Implements Loopy Belief Propagation with flooding schedule"""
-    # Reset states and messages
-    if reset: factorgraph.reset()
     # Iterate LBP message passing steps
     for _ in range(num_iter):
         # Send all variable-to-factor messages
-        for variable in factorgraph.variables.values():
-            variable.send_all_messages()
+        for variable in factorgraph.variables:
+            factorgraph.send_all_messages(variable)
         # Send all factor-to-variable messages
-        for factor in factorgraph.factors.values():
-            factor.send_all_messages()
+        for factor in factorgraph.factors:
+            factorgraph.send_all_messages(factor)
         # Update states
-        for variable in factorgraph.variables.values():
-            variable.update()
+        for variable in factorgraph.variables:
+            factorgraph.update(variable)
 
 
