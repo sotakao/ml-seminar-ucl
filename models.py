@@ -197,7 +197,8 @@ class TreeGraph(ProbabilisticGraphicalModel):
 
     def update_state(self, node, parent_node=None, offsprings=None):
         if self.state_type == 'marginal': # Marginal updates (used in belief propagation)
-            state = np.ones(self.num_states)
+            node_potential = self.nodes[node]['potential']
+            state = deepcopy(node_potential.tensor)
             for e in self.in_edges(node):
                 state *= self.edges[e]['message']
             state /= state.sum()
@@ -216,6 +217,17 @@ class TreeGraph(ProbabilisticGraphicalModel):
             elif parent_axis == 1:
                 vector = edge_potential.tensor[:,x]
             self.nodes[node]['state'] = np.argmax(vector * prod_msgs) # TODO: change
+
+
+class GaussianTreeGraph(TreeGraph):
+    def __init__(self, edge_potentials: Union[Dict, List], node_potentials: Union[Dict, List, None]=None):
+        super().__init__(edge_potentials, node_potentials)
+
+    def send_message(self, source_node, target_node):
+        ...
+
+    def update_state(self, node):
+        ...
 
 
 class FactorGraph(ProbabilisticGraphicalModel):
