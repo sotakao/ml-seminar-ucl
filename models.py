@@ -39,7 +39,11 @@ class Potential:
 
 
 class ProbabilisticGraphicalModel(nx.DiGraph, metaclass=ABCMeta):
-    """Base class for probabilistic graphical models"""
+    """
+    Base class for probabilistic graphical models.
+    This is defined as a directed graph (networkx DiGraph), whose node attributes include the states of the model
+    and directed edge attributes include the messages sent between the nodes.
+    """
     def __init__(self, *args, **kwargs):
         self._variables = None
 
@@ -50,10 +54,13 @@ class ProbabilisticGraphicalModel(nx.DiGraph, metaclass=ABCMeta):
 
     @property
     def variables(self):
+        """
+        A list of names of all variables nodes in the graph
+        """
         if self._variables is None:
             raise NotImplementedError
         else:
-            return list(set(self._variables)) # Remove duplicates
+            return list(set(self._variables)) # Convert to set first to remove duplicates
 
     @property
     def states(self):
@@ -65,27 +72,49 @@ class ProbabilisticGraphicalModel(nx.DiGraph, metaclass=ABCMeta):
     @property
     def messages(self):
         """
-        Each edge (directed) has the attribute "message"
+        Each directed edge has the attribute "message"
         """
         return dict([(e, self.edges[e]['message']) for e in self.edges()])
 
     @abstractmethod
-    def send_message(self, node, target_node, *args, **kwargs):
+    def send_message(self, source_node, target_node, *args, **kwargs):
+        """
+        Send message from source_node to target_node
+        """
         pass
     
     @abstractmethod
     def update_state(self, node, *args, **kwargs):
+        """
+        Update state at node
+        """
         pass
 
     def send_all_messages(self, node):
+        """
+        Send messages to all neighbours of a specified node
+        """
         for target_node in self.neighbors(node):
             self.send_message(node, target_node)
 
 
 class TreeGraph(ProbabilisticGraphicalModel):
+    """
+    Class defining a tree-structured graphical model.
+    Note that by the Hammersley-Clifford theorem, this can be defined completely by specifying the
+    pairwise potentials and node potentials.
+    """
     def __init__(self, edge_potentials: Union[Dict, List],
-                       node_potentials: Union[Dict, List]=None,
+                       node_potentials: Union[Dict, List, None]=None,
                        state_type: str='marginal'):
+        """
+        Args
+        ----------
+        :edge_potentials: List or Dict of all pairwise potentials
+        :node_potentials: List or Dict of nodewise potentials. If None, set all nodewise potentials to 1.
+        :state_type: Choose either "marginal" or "mode". Specifies whether the states define the marginals of the graphical model or the mode.
+                     This is dictated by whether we are running belief propagation to compute marginals, or max-product to find the mode.
+        """
         super().__init__()
 
         assert state_type in ['marginal', 'mode'], 'Only accept state_type = "marginal" or "mode"'
@@ -157,23 +186,24 @@ class TreeGraph(ProbabilisticGraphicalModel):
         for e in self.in_edges(source_node):
             if e != (target_node, source_node):
                 prod_msgs *= self.edges[e]['message']
-        if self.state_type == 'marginal':
+        if self.state_type == 'marginal': # For marginal computation (used in belief propagation)
             tensor = edge_potential.tensor
             message = np.tensordot(tensor, prod_msgs, axes=(source_axis, 0))
-        elif self.state_type == 'mode':
+        elif self.state_type == 'mode': # For mode computation (used in max-product)
             tensor = edge_potential.tensor
             prod_msgs = np.expand_dims(prod_msgs, axis=target_axis)
             message = np.max(tensor * prod_msgs, axis=source_axis)
         self.edges[(source_node, target_node)]['message'] = message
 
     def update_state(self, node, parent_node=None, offsprings=None):
-        if self.state_type == 'marginal':
+        if self.state_type == 'marginal': # Marginal updates (used in belief propagation)
             state = np.ones(self.num_states)
             for e in self.in_edges(node):
                 state *= self.edges[e]['message']
             state /= state.sum()
             self.nodes[node]['state'] = state
-        elif self.state_type == 'mode':
+
+        elif self.state_type == 'mode': # Mode updates (used in max-product)
             x = self.nodes[parent_node]['state']
             edge_potential = self.edges[(parent_node, node)]['potential']
             node_potential = self.nodes[node]['potential']
@@ -189,11 +219,15 @@ class TreeGraph(ProbabilisticGraphicalModel):
 
 
 class FactorGraph(ProbabilisticGraphicalModel):
+    """
+    Class defining a factor graph.
+    This is characterised completely by the potentials in the factorisation given by the Hammersley-Clifford theorem.
+    """
     def __init__(self, potentials: Union[Dict, List]):
         """
-        Args:
+        Args
         ----------
-        :potentials: List of Potentials
+        :potentials: List or Dict of Potentials
         """
         super().__init__()
 
@@ -224,7 +258,7 @@ class FactorGraph(ProbabilisticGraphicalModel):
         assert nx.is_bipartite(self), "FactorGraph must be bipartite"
 
     def send_message(self, source_node, target_node):
-        if self.nodes[source_node]['node_type'] == 'variable':
+        if self.nodes[source_node]['node_type'] == 'variable': # Send message from variable node to factor node
             variabletofactormessage = np.ones(self.num_states)
             for node in self.neighbors(source_node):
                 if (node != target_node):
@@ -232,7 +266,7 @@ class FactorGraph(ProbabilisticGraphicalModel):
             variabletofactormessage /= variabletofactormessage.sum() # Normalising message lead to more stable results
             self.edges[(source_node, target_node)]['message'] = variabletofactormessage 
 
-        elif self.nodes[source_node]['node_type'] == 'factor':
+        elif self.nodes[source_node]['node_type'] == 'factor': # Send message from factor node to variable node
             potential = self.nodes[source_node]['potential']
             M = potential.tensor
             for node in self.neighbors(source_node):
