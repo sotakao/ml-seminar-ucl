@@ -219,6 +219,18 @@ class TreeGraph(ProbabilisticGraphicalModel):
             self.nodes[node]['state'] = np.argmax(vector * prod_msgs) # TODO: change
 
 
+class Gaussian:
+    def __init__(self, mean, cov):
+        self.mean = mean
+        self.cov = cov
+    def __mul__(self):
+        ...
+
+
+class GaussianPotential:
+    ...
+
+
 class GaussianTreeGraph(TreeGraph):
     def __init__(self, edge_potentials: Union[Dict, List], node_potentials: Union[Dict, List, None]=None):
         super().__init__(edge_potentials, node_potentials)
