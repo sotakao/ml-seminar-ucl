@@ -41,30 +41,33 @@ class Potential:
 class ProbabilisticGraphicalModel(nx.DiGraph, metaclass=ABCMeta):
     """Base class for probabilistic graphical models"""
     def __init__(self, *args, **kwargs):
-        self._num_states = None
         self._variables = None
 
         super().__init__(*args, **kwargs)
 
-        # TODO: Add node (state) and edge (message) attributes
-    
-    @property
-    def num_states(self):
-        if self._num_states is None:
-            raise NotImplementedError
-        else:
-            return self._num_states
+        # Build graph with node (state) and edge (message) attributes
+        # ...
 
     @property
     def variables(self):
-        if self._num_states is None:
+        if self._variables is None:
             raise NotImplementedError
         else:
             return list(set(self._variables)) # Remove duplicates
 
     @property
     def states(self):
+        """
+        Each variable node has the attribute "state"
+        """
         return dict([(x, self.nodes[x]['state']) for x in self.variables])
+
+    @property
+    def messages(self):
+        """
+        Each edge (directed) has the attribute "message"
+        """
+        return dict([(e, self.edges[e]['message']) for e in self.edges()])
 
     @abstractmethod
     def send_message(self, node, target_node, *args, **kwargs):
@@ -101,7 +104,7 @@ class TreeGraph(ProbabilisticGraphicalModel):
             raise TypeError
 
         # Build graph from edge potentials
-        self._num_states = list(edge_potentials_.values())[0].tensor.shape[0]
+        self.num_states = list(edge_potentials_.values())[0].tensor.shape[0]
         self._variables = []
         for factorID, potential in edge_potentials_.items():
             (i,j) = potential.variables
@@ -205,7 +208,7 @@ class FactorGraph(ProbabilisticGraphicalModel):
         else:
             raise TypeError
 
-        self._num_states = list(potentials_.values())[0].tensor.shape[0]
+        self.num_states = list(potentials_.values())[0].tensor.shape[0]
         self._variables = []
         self.factors = []
         for factorID, potential in potentials_.items():
