@@ -9,22 +9,24 @@ from copy import deepcopy
 
 
 class Potential:
-    def __init__(self, tensor: np.ndarray, variables: Union[List, Hashable]):
+    def __init__(self,
+                tensor: np.ndarray,
+                variables: Union[List[Hashable], Hashable]):
         """
         This class represents potential functions, arising in the decomposition of joint distributions in Markov random fields.
         (Can also be used to model conditional distributions in Bayesian networks)
         We only consider the discrete variable setting here and not the continuous setting.
         In this case, a potential function can be characterised by:
         (1) a tensor, that stores the values of the potential function in tensorial form, and
-        (2) an ordered list of variable names, indicating which variable corresponds to which axis of the tensor.
+        (2) a list of variable names, indicating which variable corresponds to which axis of the tensor. Variable names should be a hashable object.
         
         Example:
         ----------
         Consider a potential function in two variables a and b, with K discrete states X = {1, ..., K}.
         Setting
         - tensor = P, and
-        - variables = ['a', 'b']
-        for some K x K tensor P, yields a potential function f : X x X -> R, such that f(a=i, b=j) = P[i,j] for i,j = 1, ..., K.
+        - variables = ['x', 'y']
+        for some K x K tensor P, yields a potential function f : X x X -> R, such that f(x=i, y=j) = P[i,j] for i,j = 1, ..., K.
 
         Note: In general, when the potential is a function of N variables, each with K discrete states, then 'tensor' will be a K x ... x K (N times) tensor.
         Note: If the tensor is one-dimensional, we accept any hashable type (e.g. int, str, etc...) for 'variables', indicating the label for the unique variable.
@@ -41,7 +43,7 @@ class Potential:
 class ProbabilisticGraphicalModel(nx.DiGraph, metaclass=ABCMeta):
     """
     Base class for probabilistic graphical models.
-    This is defined as a directed graph (networkx DiGraph), whose node attributes include the states of the model
+    This is defined as a directed graph (networkx.DiGraph), whose node attributes include the states of the model
     and directed edge attributes include the messages sent between the nodes.
     """
     def __init__(self, *args, **kwargs):
@@ -102,15 +104,17 @@ class TreeGraph(ProbabilisticGraphicalModel):
     """
     Class defining a tree-structured graphical model.
     Note that by the Hammersley-Clifford theorem, this can be defined completely by specifying the
-    pairwise potentials and node potentials.
+    pairwise potentials and nodewise potentials.
     """
-    def __init__(self, edge_potentials: Union[Dict, List],
-                       node_potentials: Union[Dict, List, None]=None,
-                       state_type: str='marginal'):
+    def __init__(self, 
+                edge_potentials: Union[Dict[Hashable, Potential], List[Potential]],
+                node_potentials: Union[Dict[Hashable, Potential], List[Potential], None]=None,
+                state_type: str='marginal'
+        ):
         """
         Args
         ----------
-        :edge_potentials: List or Dict of all pairwise potentials
+        :edge_potentials: List or Dict of all pairwise potentials. If Dict, the keys correspond to names of the factors if it exists.
         :node_potentials: List or Dict of nodewise potentials. If None, set all nodewise potentials to 1.
         :state_type: Choose either "marginal" or "mode". Specifies whether the states define the marginals of the graphical model or the mode.
                      This is dictated by whether we are running belief propagation to compute marginals, or max-product to find the mode.
@@ -219,35 +223,13 @@ class TreeGraph(ProbabilisticGraphicalModel):
             self.nodes[node]['state'] = np.argmax(vector * prod_msgs) # TODO: change
 
 
-class Gaussian:
-    def __init__(self, mean, cov):
-        self.mean = mean
-        self.cov = cov
-    def __mul__(self):
-        ...
-
-
-class GaussianPotential:
-    ...
-
-
-class GaussianTreeGraph(TreeGraph):
-    def __init__(self, edge_potentials: Union[Dict, List], node_potentials: Union[Dict, List, None]=None):
-        super().__init__(edge_potentials, node_potentials)
-
-    def send_message(self, source_node, target_node):
-        ...
-
-    def update_state(self, node):
-        ...
-
-
 class FactorGraph(ProbabilisticGraphicalModel):
     """
     Class defining a factor graph.
     This is characterised completely by the potentials in the factorisation given by the Hammersley-Clifford theorem.
     """
-    def __init__(self, potentials: Union[Dict, List]):
+    def __init__(self,
+                 potentials: Union[Dict[Hashable, Potential], List[Potential]]):
         """
         Args
         ----------
